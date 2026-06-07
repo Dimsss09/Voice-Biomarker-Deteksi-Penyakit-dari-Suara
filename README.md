@@ -63,6 +63,40 @@ Buka `http://127.0.0.1:7860`, lalu:
 
 Demo juga menerima unggahan file audio dan menyertakan sample audio sintetis untuk smoke test.
 
+## Model
+
+Model terbaik saat ini adalah **XGBoost classifier** di dalam pipeline scikit-learn. Pipeline memakai 22 fitur akustik dari dataset UCI Parkinson's Voice, termasuk pitch/F0, jitter, shimmer, HNR/NHR, RPDE, DFA, spread, D2, dan PPE.
+
+Alur training:
+
+1. Dataset UCI diunduh ke `data/raw/parkinsons.data`.
+2. Kolom fitur dirapikan menjadi nama Python-friendly.
+3. `subject_id` diekstrak dari nama rekaman agar split tidak bocor antar-subjek.
+4. Train/validation/test dibuat berdasarkan subject.
+5. Beberapa model dibandingkan: Logistic Regression, SVM RBF, Random Forest, dan XGBoost.
+6. Model terbaik disimpan ke `models/best_model.joblib`.
+7. Threshold default memakai operating point screening yang dipilih dari validation set untuk memprioritaskan sensitivitas.
+
+Model ini **bukan model klinis**. Hasil repeated subject-level CV lebih konservatif daripada satu test split, sehingga dipakai sebagai sinyal stabilitas yang lebih jujur.
+
+## Tech Web Demo
+
+Demo browser dibuat dengan **Gradio** karena mendukung input mikrofon dan upload audio langsung dari browser. Layer inference memakai:
+
+- `gr.Audio(sources=["microphone", "upload"])` untuk rekam/unggah audio.
+- `librosa` untuk load, resample, trim silence, normalisasi, dan fitur spektral.
+- `praat-parselmouth` untuk pitch, jitter, shimmer, dan HNR.
+- `joblib` untuk memuat model scikit-learn/XGBoost.
+- Custom CSS di `app/demo.py` untuk background spectrogram, logo waveform animasi, panel metrik, dan layout dua kolom.
+
+## Screenshot Evidence
+
+Screenshot demo browser tersimpan di:
+
+- `reports/screenshots/demo_home.png`
+
+![Voice Biomarker demo screenshot](reports/screenshots/demo_home.png)
+
 Output utama:
 
 - Dataset: `data/raw/parkinsons.data`

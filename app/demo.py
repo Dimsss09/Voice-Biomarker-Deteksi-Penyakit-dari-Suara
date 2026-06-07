@@ -22,6 +22,169 @@ DISCLAIMER = (
     "belum tervalidasi untuk keputusan klinis."
 )
 
+THEME_CSS = """
+body, .gradio-container {
+    background:
+        linear-gradient(135deg, rgba(6, 24, 38, 0.94), rgba(17, 41, 52, 0.88)),
+        repeating-linear-gradient(90deg, rgba(125, 211, 252, 0.10) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(0deg, rgba(45, 212, 191, 0.08) 0 1px, transparent 1px 18px) !important;
+    color: #e5f6ff;
+    min-height: 100vh;
+}
+.gradio-container {
+    max-width: 1120px !important;
+    margin: 0 auto !important;
+}
+.hero-shell {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background:
+        linear-gradient(120deg, rgba(8, 47, 73, 0.82), rgba(15, 118, 110, 0.42)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 16px);
+    border-radius: 8px;
+    padding: 28px;
+    margin: 18px 0;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+.hero-shell:after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 88px;
+    background: repeating-linear-gradient(90deg, rgba(45,212,191,0.00) 0 10px, rgba(45,212,191,0.26) 10px 12px);
+    opacity: 0.55;
+    animation: driftWave 8s linear infinite;
+}
+.brand-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 1;
+}
+.voice-logo {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: center;
+    gap: 4px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.56);
+    border: 1px solid rgba(125, 211, 252, 0.44);
+}
+.voice-logo span {
+    display: block;
+    width: 100%;
+    border-radius: 99px;
+    background: linear-gradient(180deg, #67e8f9, #2dd4bf);
+    animation: pulseBar 1.35s ease-in-out infinite;
+}
+.voice-logo span:nth-child(1) { height: 18px; animation-delay: 0s; }
+.voice-logo span:nth-child(2) { height: 30px; animation-delay: .12s; }
+.voice-logo span:nth-child(3) { height: 42px; animation-delay: .24s; }
+.voice-logo span:nth-child(4) { height: 28px; animation-delay: .36s; }
+.voice-logo span:nth-child(5) { height: 20px; animation-delay: .48s; }
+.hero-title {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.08;
+    letter-spacing: 0;
+    color: #f8fafc;
+}
+.hero-subtitle {
+    margin: 12px 0 0;
+    max-width: 760px;
+    color: #c7e8f3;
+    font-size: 16px;
+    line-height: 1.55;
+    position: relative;
+    z-index: 1;
+}
+.metric-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 22px;
+    position: relative;
+    z-index: 1;
+}
+.metric-pill {
+    border: 1px solid rgba(226, 232, 240, 0.20);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.42);
+}
+.metric-pill strong {
+    display: block;
+    color: #ffffff;
+    font-size: 20px;
+}
+.metric-pill span {
+    display: block;
+    color: #bae6fd;
+    font-size: 12px;
+    margin-top: 2px;
+}
+.notice-band {
+    border-left: 4px solid #38bdf8;
+    background: rgba(8, 47, 73, 0.55);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: #e0f2fe;
+}
+.gradio-container .block,
+.gradio-container .form,
+.gradio-container .panel {
+    border-radius: 8px !important;
+}
+button.primary {
+    background: linear-gradient(90deg, #0f766e, #0369a1) !important;
+    border: 0 !important;
+}
+@keyframes pulseBar {
+    0%, 100% { transform: scaleY(.65); opacity: .72; }
+    50% { transform: scaleY(1.18); opacity: 1; }
+}
+@keyframes driftWave {
+    from { transform: translateX(0); }
+    to { transform: translateX(34px); }
+}
+@media (max-width: 720px) {
+    .hero-title { font-size: 26px; }
+    .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero-shell { padding: 20px; }
+}
+"""
+
+HERO_HTML = f"""
+<section class="hero-shell">
+  <div class="brand-row">
+    <div class="voice-logo" aria-label="Voice waveform logo">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div>
+      <h1 class="hero-title">Voice Biomarker Parkinson Demo</h1>
+      <p class="hero-subtitle">
+        Rekam vokal <strong>aaaa</strong> sekitar 5 detik atau unggah audio.
+        Sistem mengekstrak fitur suara, memuat model XGBoost, lalu menampilkan probabilitas Parkinson.
+      </p>
+    </div>
+  </div>
+  <div class="metric-strip">
+    <div class="metric-pill"><strong>0.997</strong><span>Held-out ROC-AUC</span></div>
+    <div class="metric-pill"><strong>1.000</strong><span>Sensitivity test</span></div>
+    <div class="metric-pill"><strong>0.667</strong><span>Specificity test</span></div>
+    <div class="metric-pill"><strong>0.802</strong><span>Repeated CV ROC-AUC</span></div>
+  </div>
+</section>
+<div class="notice-band">
+  <strong>Disclaimer:</strong> {DISCLAIMER}
+</div>
+"""
+
 
 def _format_prediction(audio_path: str | None) -> tuple[str, str]:
     if audio_path is None:
@@ -50,24 +213,29 @@ def build_demo() -> gr.Blocks:
     """Build the Gradio interface."""
     create_sample_audio(SAMPLE_AUDIO_PATH)
     with gr.Blocks(title="Voice Biomarker Parkinson Demo") as demo:
-        gr.Markdown("# Voice Biomarker Parkinson Demo")
+        gr.HTML(HERO_HTML)
         gr.Markdown(
-            "Tekan rekam lalu ucapkan vokal **aaaa** secara stabil selama sekitar 5 detik, "
-            "atau unggah file audio. Rekaman diproses di memori dan tidak disimpan oleh aplikasi."
+            "Rekaman diproses di memori dan tidak disimpan oleh aplikasi. "
+            "Gunakan ruangan yang tenang agar ekstraksi fitur lebih stabil."
         )
-        gr.Markdown(f"**Disclaimer:** {DISCLAIMER}")
 
-        audio = gr.Audio(
-            sources=["microphone", "upload"],
-            type="filepath",
-            label="Rekam atau unggah audio",
-        )
-        with gr.Row():
-            predict_button = gr.Button("Prediksi", variant="primary")
-            clear_button = gr.ClearButton()
-
-        prediction = gr.Textbox(label="Hasil prediksi", lines=8)
-        features = gr.Code(label="Fitur audio yang diekstrak", language="json")
+        with gr.Row(equal_height=True):
+            with gr.Column(scale=5):
+                audio = gr.Audio(
+                    sources=["microphone", "upload"],
+                    type="filepath",
+                    label="Rekam atau unggah audio",
+                )
+                with gr.Row():
+                    predict_button = gr.Button("Prediksi", variant="primary")
+                    clear_button = gr.ClearButton()
+                gr.Markdown(
+                    "Protokol: ucapkan vokal **aaaa** stabil sekitar 5 detik. "
+                    "Jangan gunakan hasil ini sebagai keputusan medis."
+                )
+            with gr.Column(scale=4):
+                prediction = gr.Textbox(label="Hasil prediksi", lines=8)
+                features = gr.Code(label="Fitur audio yang diekstrak", language="json")
         gr.Examples(examples=[str(SAMPLE_AUDIO_PATH)], inputs=audio, label="Contoh audio")
 
         predict_button.click(_format_prediction, inputs=audio, outputs=[prediction, features])
@@ -76,7 +244,7 @@ def build_demo() -> gr.Blocks:
 
 
 def main() -> None:
-    build_demo().launch(server_name="127.0.0.1", server_port=7860)
+    build_demo().launch(server_name="127.0.0.1", server_port=7860, css=THEME_CSS)
 
 
 if __name__ == "__main__":
