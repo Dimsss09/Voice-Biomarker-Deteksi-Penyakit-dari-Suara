@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from src.data import PROJECT_ROOT, get_feature_columns, load_dataset_config, load_raw_dataset
+from src.data import PROJECT_ROOT, add_subject_id, get_feature_columns, load_dataset_config, load_raw_dataset
 
 
 REPORTS_DIR = PROJECT_ROOT / "reports"
@@ -20,6 +20,7 @@ def _write_markdown_report(
     class_counts: pd.Series,
     missing_counts: pd.Series,
     high_correlations: pd.DataFrame,
+    subject_summary: pd.DataFrame,
 ) -> Path:
     config = load_dataset_config()
     report_path = REPORTS_DIR / "phase1_eda_summary.md"
@@ -39,6 +40,7 @@ def _write_markdown_report(
         f"- Identifier column: `{config['id_column']}`",
         f"- Target column: `{config['target_column']}`",
         f"- Numeric feature columns: {len(feature_columns)}",
+        f"- Parsed subjects: {subject_summary.shape[0]}",
         "",
         "## Target Distribution",
         "",
@@ -52,18 +54,42 @@ def _write_markdown_report(
         f"- Missing values: {int(missing_counts.sum())}",
         f"- Duplicate rows: {int(frame.duplicated().sum())}",
         f"- Unique recording IDs: {frame[config['id_column']].nunique()}",
+        f"- Min recordings per subject: {int(subject_summary['recordings'].min())}",
+        f"- Max recordings per subject: {int(subject_summary['recordings'].max())}",
         "",
         "## Feature Overview",
         "",
         "- The UCI file already contains acoustic measurements, so Phase 2 can begin with cleaning, scaling, and feature selection rather than raw-audio extraction.",
-        "- Subject-level splitting is required later. In this dataset, each `name` value represents one recording ID, not a repeated subject identifier.",
-        "- Because explicit subject IDs are unavailable, the safest fallback for Phase 3 is to document this limitation and avoid any split that duplicates the same `name` across train/test.",
+        "- Subject IDs can be parsed from `name` values such as `phon_R01_S01_1`, where `S01` is the subject.",
+        "- Phase 3 must split by `subject_id` so recordings from the same subject do not leak across train/test.",
         "",
-        "## Strong Feature Correlations",
+        "## Subject Distribution",
         "",
-        "| Feature A | Feature B | Absolute Correlation |",
-        "| --- | --- | ---: |",
+        "| Label | Meaning | Subjects | Recordings |",
+        "| --- | --- | ---: | ---: |",
     ]
+
+    subject_by_label = (
+        subject_summary.groupby("status")
+        .agg(subjects=("subject_id", "count"), recordings=("recordings", "sum"))
+        .sort_index()
+    )
+    for label, meaning in [(0, "Healthy"), (1, "Parkinson")]:
+        if label in subject_by_label.index:
+            row = subject_by_label.loc[label]
+            lines.append(f"| {label} | {meaning} | {int(row['subjects'])} | {int(row['recordings'])} |")
+        else:
+            lines.append(f"| {label} | {meaning} | 0 | 0 |")
+
+    lines.extend(
+        [
+            "",
+            "## Strong Feature Correlations",
+            "",
+            "| Feature A | Feature B | Absolute Correlation |",
+            "| --- | --- | ---: |",
+        ]
+    )
 
     if high_correlations.empty:
         lines.append("| - | - | - |")
@@ -153,7 +179,7 @@ def _plot_feature_distributions(frame: pd.DataFrame) -> None:
 
 def main() -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    frame = load_raw_dataset()
+    frame = add_subject_id(load_raw_dataset())
     feature_columns = get_feature_columns(frame)
     config = load_dataset_config()
 
@@ -163,16 +189,24 @@ def main() -> None:
     _plot_class_distribution(frame)
     high_correlations = _plot_correlation_heatmap(frame, feature_columns)
     _plot_feature_distributions(frame)
+    subject_summary = (
+        frame.groupby("subject_id")
+        .agg(recordings=(config["id_column"], "count"), status=(config["target_column"], "first"))
+        .reset_index()
+    )
+    subject_summary.to_csv(REPORTS_DIR / "subject_summary.csv", index=False)
     report_path = _write_markdown_report(
         frame=frame,
         feature_columns=feature_columns,
         class_counts=class_counts,
         missing_counts=missing_counts,
         high_correlations=high_correlations,
+        subject_summary=subject_summary,
     )
 
     print(f"EDA report written to: {report_path}")
     print(f"Class distribution: {class_counts.to_dict()}")
+    print(f"Parsed subjects: {subject_summary.shape[0]}")
     print(f"Missing values: {int(missing_counts.sum())}")
 
 

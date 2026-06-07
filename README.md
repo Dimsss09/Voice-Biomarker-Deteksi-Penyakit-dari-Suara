@@ -7,7 +7,7 @@ Proyek ini membangun pipeline machine learning untuk membedakan suara sehat dan 
 ## Status Fase
 
 - [x] Fase 0 - Inisialisasi proyek
-- [ ] Fase 1 - Pengumpulan data dan EDA awal
+- [x] Fase 1 - Pengumpulan data dan EDA awal
 - [ ] Fase 2 - Pra-pemrosesan dan ekstraksi/seleksi fitur
 - [ ] Fase 3 - Pelatihan model
 - [ ] Fase 4 - Evaluasi
@@ -49,6 +49,7 @@ Output utama:
 
 - Dataset: `data/raw/parkinsons.data`
 - Ringkasan EDA: `reports/phase1_eda_summary.md`
+- Ringkasan subject: `reports/subject_summary.csv`
 - Visualisasi: `reports/class_distribution.png`, `reports/correlation_heatmap.png`, `reports/feature_distributions_by_label.png`
 
 ## Dataset

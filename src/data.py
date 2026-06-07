@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import pandas as pd
@@ -53,3 +54,16 @@ def get_feature_columns(frame: pd.DataFrame) -> list[str]:
         for column in frame.columns
         if column not in excluded and pd.api.types.is_numeric_dtype(frame[column])
     ]
+
+
+def add_subject_id(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add subject_id parsed from UCI recording names such as phon_R01_S01_1."""
+    config = load_dataset_config()
+    result = frame.copy()
+
+    def parse_subject_id(recording_name: str) -> str:
+        match = re.search(r"_(S\d+)_", str(recording_name))
+        return match.group(1) if match else str(recording_name)
+
+    result["subject_id"] = result[config["id_column"]].map(parse_subject_id)
+    return result
