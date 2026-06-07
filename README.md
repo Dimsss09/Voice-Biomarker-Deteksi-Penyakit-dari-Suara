@@ -9,7 +9,7 @@ Proyek ini membangun pipeline machine learning untuk membedakan suara sehat dan 
 - [x] Fase 0 - Inisialisasi proyek
 - [x] Fase 1 - Pengumpulan data dan EDA awal
 - [x] Fase 2 - Pra-pemrosesan dan ekstraksi/seleksi fitur
-- [ ] Fase 3 - Pelatihan model
+- [x] Fase 3 - Pelatihan model
 - [ ] Fase 4 - Evaluasi
 - [ ] Fase 5 - Demo interaktif browser
 - [ ] Fase 6 - Dokumentasi final
@@ -44,6 +44,7 @@ pip install -r requirements.txt
 python -m src.download_data
 python -m src.eda
 python -m src.prepare_features
+python -m src.train
 ```
 
 Output utama:
@@ -54,6 +55,8 @@ Output utama:
 - Visualisasi: `reports/class_distribution.png`, `reports/correlation_heatmap.png`, `reports/feature_distributions_by_label.png`
 - Tabel fitur siap latih: `data/features/parkinsons_features.csv`
 - Skema fitur: `data/features/feature_schema.json`
+- Model terbaik: `models/best_model.joblib`
+- Laporan training: `reports/phase3_training_report.md`
 
 ## Dataset
 

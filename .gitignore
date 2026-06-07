@@ -18,6 +18,7 @@ data/features/*
 models/*.pkl
 models/*.joblib
 models/*.onnx
+!models/*.joblib
 !data/processed/.gitkeep
 !data/features/.gitkeep
 
