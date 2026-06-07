@@ -184,6 +184,27 @@ def choose_threshold(y_true: pd.Series, y_score: pd.Series) -> float:
     return float(best_threshold)
 
 
+def choose_threshold_for_min_sensitivity(
+    y_true: pd.Series,
+    y_score: pd.Series,
+    min_sensitivity: float = 0.90,
+) -> float:
+    """Choose the highest threshold that still reaches a target sensitivity."""
+    thresholds = sorted(set(float(value) for value in y_score), reverse=True)
+    thresholds.append(0.0)
+
+    viable: list[tuple[float, float]] = []
+    for threshold in thresholds:
+        metrics = evaluate_predictions(y_true, y_score, threshold=threshold)
+        if metrics["sensitivity"] >= min_sensitivity:
+            viable.append((threshold, metrics["specificity"]))
+
+    if not viable:
+        return 0.5
+    threshold, _ = max(viable, key=lambda item: (item[1], item[0]))
+    return float(threshold)
+
+
 def evaluate_predictions(y_true: pd.Series, y_score: pd.Series, threshold: float = 0.5) -> dict[str, float]:
     """Calculate core binary classification metrics."""
     y_pred = (y_score >= threshold).astype(int)
@@ -253,6 +274,7 @@ def _write_training_report(
         "- Split is stratified at subject level using `subject_id` to avoid leakage between recordings from the same person.",
         "- Validation set is used to choose the model. Test set is held out for Phase 4 evaluation.",
         "- `StandardScaler` is inside each sklearn pipeline and is fitted only on training folds/split.",
+        "- The saved decision threshold is a screening threshold chosen on validation data to target at least 90% sensitivity.",
         "",
         "| Split | Subjects | Recordings | Healthy | Parkinson |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -260,7 +282,7 @@ def _write_training_report(
         "",
         "## Validation Results",
         "",
-        "| Model | CV ROC-AUC | Validation ROC-AUC | Threshold | Sensitivity | Specificity | F1 | Balanced Accuracy |",
+        "| Model | CV ROC-AUC | Validation ROC-AUC | Screening Threshold | Sensitivity | Specificity | F1 | Balanced Accuracy |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for _, row in scores.sort_values("validation_roc_auc", ascending=False).iterrows():
@@ -278,7 +300,8 @@ def _write_training_report(
             "",
             f"- Best model: `{best_model_name}`",
             f"- Best parameters: `{best_params}`",
-            f"- Decision threshold: `{float(scores.iloc[0]['validation_threshold']):.3f}`",
+            f"- Screening decision threshold: `{float(scores.iloc[0]['validation_threshold']):.3f}`",
+            f"- Youden J threshold: `{float(scores.iloc[0]['validation_youden_threshold']):.3f}`",
             "- Saved artifact: `models/best_model.joblib`",
             "- Score table: `reports/phase3_model_scores.csv`",
             "- Split assignments: `reports/phase3_split_assignments.csv`",
@@ -308,7 +331,8 @@ def main() -> None:
     best_model = None
     best_model_name = ""
     best_params: dict[str, Any] = {}
-    best_threshold = 0.5
+    best_youden_threshold = 0.5
+    best_screening_threshold = 0.5
     best_validation_auc = -1.0
 
     for model_name, (pipeline, param_grid) in _candidate_models(y_train).items():
@@ -323,7 +347,9 @@ def main() -> None:
         search.fit(x_train, y_train, groups=groups)
         y_score = _predict_scores(search.best_estimator_, x_validation)
         threshold = choose_threshold(y_validation, y_score)
-        metrics = evaluate_predictions(y_validation, y_score, threshold=threshold)
+        screening_threshold = choose_threshold_for_min_sensitivity(y_validation, y_score, min_sensitivity=0.90)
+        metrics = evaluate_predictions(y_validation, y_score, threshold=screening_threshold)
+        youden_metrics = evaluate_predictions(y_validation, y_score, threshold=threshold)
         validation_auc = metrics["roc_auc"]
 
         rows.append(
@@ -331,6 +357,9 @@ def main() -> None:
                 "model": model_name,
                 "cv_roc_auc_mean": float(search.best_score_),
                 "best_params": json.dumps(search.best_params_, sort_keys=True),
+                "validation_youden_threshold": threshold,
+                "validation_youden_sensitivity": youden_metrics["sensitivity"],
+                "validation_youden_specificity": youden_metrics["specificity"],
                 **{f"validation_{key}": value for key, value in metrics.items()},
             }
         )
@@ -340,7 +369,8 @@ def main() -> None:
             best_model = search.best_estimator_
             best_model_name = model_name
             best_params = search.best_params_
-            best_threshold = threshold
+            best_youden_threshold = threshold
+            best_screening_threshold = screening_threshold
 
     if best_model is None:
         raise RuntimeError("No model was trained.")
@@ -354,7 +384,12 @@ def main() -> None:
         "model": best_model,
         "model_name": best_model_name,
         "best_params": best_params,
-        "decision_threshold": best_threshold,
+        "decision_threshold": best_screening_threshold,
+        "thresholds": {
+            "screening_min_sensitivity_0_90": best_screening_threshold,
+            "youden_j": best_youden_threshold,
+            "default_0_5": 0.5,
+        },
         "feature_columns": feature_columns,
         "schema": schema,
         "random_state": RANDOM_STATE,

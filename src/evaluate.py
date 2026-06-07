@@ -7,10 +7,12 @@ from pathlib import Path
 
 import joblib
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.inspection import permutation_importance
-from sklearn.metrics import auc, confusion_matrix, roc_curve
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import auc, brier_score_loss, confusion_matrix, roc_curve
 
 from src.data import PROJECT_ROOT
 from src.train import evaluate_predictions, load_feature_table
@@ -89,6 +91,22 @@ def _plot_roc_curve(y_true: pd.Series, y_score: pd.Series) -> Path:
     return path
 
 
+def _plot_calibration_curve(y_true: pd.Series, y_score: pd.Series) -> Path:
+    prob_true, prob_pred = calibration_curve(y_true, y_score, n_bins=5, strategy="quantile")
+    path = REPORTS_DIR / "phase4_calibration_curve.png"
+    plt.figure(figsize=(6, 5))
+    plt.plot(prob_pred, prob_true, marker="o", linewidth=2, label="Model")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="#6b7280", linewidth=1, label="Perfect calibration")
+    plt.xlabel("Mean Predicted Probability")
+    plt.ylabel("Fraction of Positives")
+    plt.title("Held-Out Test Calibration")
+    plt.legend(loc="best")
+    plt.tight_layout()
+    plt.savefig(path, dpi=160)
+    plt.close()
+    return path
+
+
 def _write_predictions(test_frame: pd.DataFrame, y_score: pd.Series, y_pred: pd.Series) -> Path:
     path = REPORTS_DIR / "phase4_test_predictions.csv"
     output = test_frame[["recording_id", "subject_id", "label"]].copy()
@@ -98,15 +116,52 @@ def _write_predictions(test_frame: pd.DataFrame, y_score: pd.Series, y_pred: pd.
     return path
 
 
-def _write_threshold_comparison(y_true: pd.Series, y_score: pd.Series, selected_threshold: float) -> tuple[Path, pd.DataFrame]:
+def _write_threshold_comparison(
+    y_true: pd.Series,
+    y_score: pd.Series,
+    thresholds: dict[str, float],
+) -> tuple[Path, pd.DataFrame]:
     path = REPORTS_DIR / "phase4_threshold_comparison.csv"
     rows = []
-    for label, threshold in [("selected_validation_threshold", selected_threshold), ("default_0_5", 0.5)]:
+    for label, threshold in thresholds.items():
         metrics = evaluate_predictions(y_true, y_score, threshold=threshold)
         rows.append({"threshold_name": label, **metrics})
     frame = pd.DataFrame(rows)
     frame.to_csv(path, index=False)
     return path, frame
+
+
+def _bootstrap_subject_ci(
+    test_frame: pd.DataFrame,
+    y_score: pd.Series,
+    threshold: float,
+    repeats: int = 1000,
+) -> tuple[Path, dict[str, dict[str, float]]]:
+    rng = np.random.default_rng(42)
+    subject_ids = np.array(sorted(test_frame["subject_id"].unique()))
+    scored = test_frame[["subject_id", "label"]].copy()
+    scored["score"] = y_score
+    rows = []
+
+    for _ in range(repeats):
+        sampled_subjects = rng.choice(subject_ids, size=len(subject_ids), replace=True)
+        sampled = pd.concat([scored[scored["subject_id"] == subject_id] for subject_id in sampled_subjects])
+        if sampled["label"].nunique() < 2:
+            continue
+        metrics = evaluate_predictions(sampled["label"], sampled["score"], threshold=threshold)
+        rows.append(metrics)
+
+    path = REPORTS_DIR / "phase4_bootstrap_ci.csv"
+    bootstrap = pd.DataFrame(rows)
+    bootstrap.to_csv(path, index=False)
+    summary: dict[str, dict[str, float]] = {}
+    for metric in ["roc_auc", "sensitivity", "specificity", "f1", "balanced_accuracy"]:
+        summary[metric] = {
+            "mean": float(bootstrap[metric].mean()),
+            "ci_low": float(bootstrap[metric].quantile(0.025)),
+            "ci_high": float(bootstrap[metric].quantile(0.975)),
+        }
+    return path, summary
 
 
 def _write_feature_importance(model, x_test: pd.DataFrame, y_test: pd.Series) -> Path:
@@ -140,9 +195,13 @@ def _write_evaluation_report(
     test_frame: pd.DataFrame,
     confusion_path: Path,
     roc_path: Path,
+    calibration_path: Path,
     predictions_path: Path,
     threshold_comparison_path: Path,
     threshold_comparison: pd.DataFrame,
+    bootstrap_path: Path,
+    bootstrap_summary: dict[str, dict[str, float]],
+    brier_score: float,
     importance_path: Path,
 ) -> Path:
     report_path = REPORTS_DIR / "phase4_evaluation_report.md"
@@ -179,12 +238,28 @@ def _write_evaluation_report(
         f"| F1 | {metrics['f1']:.3f} |",
         f"| Accuracy | {metrics['accuracy']:.3f} |",
         f"| Balanced Accuracy | {metrics['balanced_accuracy']:.3f} |",
+        f"| Brier Score | {brier_score:.3f} |",
         "",
-        "## Threshold Comparison",
+        "## Bootstrap 95% CI",
         "",
-        "| Threshold | ROC-AUC | Sensitivity | Specificity | F1 | Balanced Accuracy |",
-        "| --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Metric | Mean | 95% CI Low | 95% CI High |",
+        "| --- | ---: | ---: | ---: |",
     ]
+
+    for metric, values in bootstrap_summary.items():
+        lines.append(
+            f"| {metric} | {values['mean']:.3f} | {values['ci_low']:.3f} | {values['ci_high']:.3f} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Threshold Comparison",
+            "",
+            "| Threshold | ROC-AUC | Sensitivity | Specificity | F1 | Balanced Accuracy |",
+            "| --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
 
     for _, row in threshold_comparison.iterrows():
         lines.append(
@@ -196,26 +271,28 @@ def _write_evaluation_report(
     lines.extend(
         [
             "",
-        "## Confusion Matrix",
-        "",
-        "| | Pred Healthy | Pred Parkinson |",
-        "| --- | ---: | ---: |",
-        f"| Actual Healthy | {int(metrics['tn'])} | {int(metrics['fp'])} |",
-        f"| Actual Parkinson | {int(metrics['fn'])} | {int(metrics['tp'])} |",
-        "",
-        "## Artifacts",
-        "",
-        f"- Confusion matrix: `{_relative(confusion_path)}`",
-        f"- ROC curve: `{_relative(roc_path)}`",
-        f"- Test predictions: `{_relative(predictions_path)}`",
-        f"- Threshold comparison: `{_relative(threshold_comparison_path)}`",
-        f"- Permutation importance: `{_relative(importance_path)}`",
-        "",
-        "## Notes",
-        "",
-        "- This is a subject-level held-out evaluation, so recordings from test subjects were not used for model selection.",
-        "- The validation-selected threshold is conservative. The threshold comparison is included so Phase 5 can choose a demo threshold intentionally.",
-        "- Dataset size is small, especially for healthy subjects, so metrics should be read as educational project evidence rather than clinical evidence.",
+            "## Confusion Matrix",
+            "",
+            "| | Pred Healthy | Pred Parkinson |",
+            "| --- | ---: | ---: |",
+            f"| Actual Healthy | {int(metrics['tn'])} | {int(metrics['fp'])} |",
+            f"| Actual Parkinson | {int(metrics['fn'])} | {int(metrics['tp'])} |",
+            "",
+            "## Artifacts",
+            "",
+            f"- Confusion matrix: `{_relative(confusion_path)}`",
+            f"- ROC curve: `{_relative(roc_path)}`",
+            f"- Calibration curve: `{_relative(calibration_path)}`",
+            f"- Test predictions: `{_relative(predictions_path)}`",
+            f"- Threshold comparison: `{_relative(threshold_comparison_path)}`",
+            f"- Bootstrap CI samples: `{_relative(bootstrap_path)}`",
+            f"- Permutation importance: `{_relative(importance_path)}`",
+            "",
+            "## Notes",
+            "",
+            "- This is a subject-level held-out evaluation, so recordings from test subjects were not used for model selection.",
+            "- The default operating threshold is selected from validation data for screening sensitivity, not optimized on the test set.",
+            "- Dataset size is small, especially for healthy subjects, so metrics should be read as educational project evidence rather than clinical evidence.",
         ]
     )
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -236,13 +313,17 @@ def main() -> None:
     y_pred = (y_score >= threshold).astype(int)
 
     metrics = evaluate_predictions(y_test, y_score, threshold=threshold)
+    brier_score = float(brier_score_loss(y_test, y_score))
     metrics_path = REPORTS_DIR / "phase4_metrics.json"
-    metrics_path.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    metrics_path.write_text(json.dumps({**metrics, "brier_score": brier_score}, indent=2) + "\n", encoding="utf-8")
 
     confusion_path = _plot_confusion_matrix(y_test, y_pred)
     roc_path = _plot_roc_curve(y_test, y_score)
+    calibration_path = _plot_calibration_curve(y_test, y_score)
     predictions_path = _write_predictions(test_frame, y_score, y_pred)
-    threshold_comparison_path, threshold_comparison = _write_threshold_comparison(y_test, y_score, selected_threshold=threshold)
+    thresholds = artifact.get("thresholds", {"decision_threshold": threshold, "default_0_5": 0.5})
+    threshold_comparison_path, threshold_comparison = _write_threshold_comparison(y_test, y_score, thresholds=thresholds)
+    bootstrap_path, bootstrap_summary = _bootstrap_subject_ci(test_frame, y_score, threshold=threshold)
     importance_path = _write_feature_importance(model, x_test, y_test)
     report_path = _write_evaluation_report(
         artifact=artifact,
@@ -250,9 +331,13 @@ def main() -> None:
         test_frame=test_frame,
         confusion_path=confusion_path,
         roc_path=roc_path,
+        calibration_path=calibration_path,
         predictions_path=predictions_path,
         threshold_comparison_path=threshold_comparison_path,
         threshold_comparison=threshold_comparison,
+        bootstrap_path=bootstrap_path,
+        bootstrap_summary=bootstrap_summary,
+        brier_score=brier_score,
         importance_path=importance_path,
     )
 

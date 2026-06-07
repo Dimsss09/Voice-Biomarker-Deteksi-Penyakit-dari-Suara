@@ -46,6 +46,7 @@ python -m src.eda
 python -m src.prepare_features
 python -m src.train
 python -m src.evaluate
+python -m src.robust_validation
 ```
 
 Output utama:
@@ -60,6 +61,9 @@ Output utama:
 - Laporan training: `reports/phase3_training_report.md`
 - Laporan evaluasi: `reports/phase4_evaluation_report.md`
 - Visual evaluasi: `reports/phase4_confusion_matrix.png`, `reports/phase4_roc_curve.png`
+- Model card: `reports/model_card.md`
+- Industry readiness checklist: `reports/industry_readiness_checklist.md`
+- Robust CV report: `reports/robust_subject_cv_report.md`
 
 ## Dataset
 
