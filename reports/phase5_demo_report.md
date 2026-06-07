@@ -7,7 +7,8 @@
 - Inputs: browser microphone and audio upload
 - Protocol: record a stable `aaaa` vowel for about 5 seconds
 - Sample audio: `data/samples/demo_vowel_aaaa.wav`
-- Visual polish: spectrogram-style background, animated waveform logo, metric strip, and two-column prediction layout
+- Visual polish: full-screen spectrogram-style background, animated waveform logo, metric strip, and two-column prediction layout
+- Prediction copy: user-friendly Indonesian summary with indication score and plain-language interpretation
 
 ## Inference Flow
 

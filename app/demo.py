@@ -23,17 +23,31 @@ DISCLAIMER = (
 )
 
 THEME_CSS = """
-body, .gradio-container {
+html, body, gradio-app, .gradio-container {
     background:
         linear-gradient(135deg, rgba(6, 24, 38, 0.94), rgba(17, 41, 52, 0.88)),
         repeating-linear-gradient(90deg, rgba(125, 211, 252, 0.10) 0 1px, transparent 1px 24px),
         repeating-linear-gradient(0deg, rgba(45, 212, 191, 0.08) 0 1px, transparent 1px 18px) !important;
     color: #e5f6ff;
     min-height: 100vh;
+    width: 100%;
+}
+body {
+    margin: 0 !important;
+    overflow-x: hidden;
 }
 .gradio-container {
-    max-width: 1120px !important;
-    margin: 0 auto !important;
+    max-width: none !important;
+    width: 100vw !important;
+    margin: 0 !important;
+    padding: 24px clamp(18px, 5vw, 72px) 32px !important;
+    box-sizing: border-box;
+}
+.main {
+    max-width: none !important;
+}
+.contain {
+    max-width: none !important;
 }
 .hero-shell {
     position: relative;
@@ -43,8 +57,8 @@ body, .gradio-container {
         linear-gradient(120deg, rgba(8, 47, 73, 0.82), rgba(15, 118, 110, 0.42)),
         repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 16px);
     border-radius: 8px;
-    padding: 28px;
-    margin: 18px 0;
+    padding: clamp(22px, 3vw, 38px);
+    margin: 0 0 18px;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 .hero-shell:after {
@@ -96,7 +110,7 @@ body, .gradio-container {
 }
 .hero-subtitle {
     margin: 12px 0 0;
-    max-width: 760px;
+    max-width: 920px;
     color: #c7e8f3;
     font-size: 16px;
     line-height: 1.55;
@@ -106,7 +120,7 @@ body, .gradio-container {
 .metric-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
     margin-top: 22px;
     position: relative;
     z-index: 1;
@@ -134,6 +148,19 @@ body, .gradio-container {
     border-radius: 8px;
     padding: 12px 14px;
     color: #e0f2fe;
+    margin-bottom: 18px;
+}
+.intro-copy {
+    color: #eff6ff;
+    margin: 0 0 18px;
+    font-size: 15px;
+}
+.result-card textarea {
+    font-size: 16px !important;
+    line-height: 1.55 !important;
+}
+.technical-details {
+    opacity: 0.92;
 }
 .gradio-container .block,
 .gradio-container .form,
@@ -169,7 +196,7 @@ HERO_HTML = f"""
       <h1 class="hero-title">Voice Biomarker Parkinson Demo</h1>
       <p class="hero-subtitle">
         Rekam vokal <strong>aaaa</strong> sekitar 5 detik atau unggah audio.
-        Sistem mengekstrak fitur suara, memuat model XGBoost, lalu menampilkan probabilitas Parkinson.
+        Sistem membaca pola suara, lalu memberi indikasi edukatif yang mudah dipahami.
       </p>
     </div>
   </div>
@@ -188,21 +215,31 @@ HERO_HTML = f"""
 
 def _format_prediction(audio_path: str | None) -> tuple[str, str]:
     if audio_path is None:
-        return "Belum ada audio.", "{}"
+        return "Silakan rekam suara atau unggah audio terlebih dahulu.", "{}"
 
     try:
         result = predict_audio(audio_path)
     except Exception as exc:
-        return f"Gagal memproses audio: {exc}", "{}"
+        return f"Audio belum bisa diproses.\n\nPenyebab teknis: {exc}", "{}"
 
     probability = float(result["probability_parkinson"])
-    confidence = probability if result["predicted_label"] == 1 else 1 - probability
+    percentage = probability * 100
+    if probability >= 0.75:
+        risk_text = "Indikasi pola suara mirip Parkinson terdeteksi tinggi."
+        tone = "Gunakan hasil ini sebagai sinyal edukatif saja, bukan kesimpulan medis."
+    elif probability >= 0.45:
+        risk_text = "Pola suara berada di area abu-abu."
+        tone = "Coba rekam ulang di ruangan yang lebih tenang untuk melihat apakah hasilnya konsisten."
+    else:
+        risk_text = "Indikasi pola suara mirip Parkinson terdeteksi rendah."
+        tone = "Hasil rendah tidak berarti bebas risiko medis."
     summary = (
-        f"Prediksi: {result['label']}\n"
-        f"Probabilitas Parkinson: {probability:.3f}\n"
-        f"Confidence label terpilih: {confidence:.3f}\n"
-        f"Threshold: {result['threshold']:.3f}\n"
-        f"Model: {result['model_name']}\n\n"
+        f"{risk_text}\n\n"
+        f"Skor indikasi: {percentage:.1f}%\n\n"
+        f"Makna hasil:\n"
+        f"- Skor lebih tinggi berarti pola fitur suara lebih mirip data Parkinson pada dataset latihan.\n"
+        f"- Hasil bisa berubah karena kualitas mikrofon, noise, durasi rekaman, dan cara mengucapkan vokal.\n"
+        f"- {tone}\n\n"
         f"{DISCLAIMER}"
     )
     feature_preview = json.dumps(result["features"], indent=2)
@@ -214,9 +251,9 @@ def build_demo() -> gr.Blocks:
     create_sample_audio(SAMPLE_AUDIO_PATH)
     with gr.Blocks(title="Voice Biomarker Parkinson Demo") as demo:
         gr.HTML(HERO_HTML)
-        gr.Markdown(
-            "Rekaman diproses di memori dan tidak disimpan oleh aplikasi. "
-            "Gunakan ruangan yang tenang agar ekstraksi fitur lebih stabil."
+        gr.HTML(
+            '<p class="intro-copy">Rekaman diproses di memori dan tidak disimpan oleh aplikasi. '
+            'Gunakan ruangan yang tenang agar pembacaan pola suara lebih stabil.</p>'
         )
 
         with gr.Row(equal_height=True):
@@ -234,8 +271,9 @@ def build_demo() -> gr.Blocks:
                     "Jangan gunakan hasil ini sebagai keputusan medis."
                 )
             with gr.Column(scale=4):
-                prediction = gr.Textbox(label="Hasil prediksi", lines=8)
-                features = gr.Code(label="Fitur audio yang diekstrak", language="json")
+                prediction = gr.Textbox(label="Hasil prediksi", lines=11, elem_classes=["result-card"])
+                with gr.Accordion("Detail teknis fitur audio", open=False, elem_classes=["technical-details"]):
+                    features = gr.Code(label="Fitur yang diekstrak", language="json")
         gr.Examples(examples=[str(SAMPLE_AUDIO_PATH)], inputs=audio, label="Contoh audio")
 
         predict_button.click(_format_prediction, inputs=audio, outputs=[prediction, features])
