@@ -1,0 +1,23 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.env
+
+# Generated datasets and large artifacts
+data/processed/*
+data/features/*
+models/*.pkl
+models/*.joblib
+models/*.onnx
+!data/processed/.gitkeep
+!data/features/.gitkeep
+
+# Keep raw metadata/tabular datasets small enough to commit by exception.
+# Large raw audio files should stay untracked.
+data/raw/audio/

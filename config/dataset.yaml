@@ -1,0 +1,8 @@
+dataset:
+  name: "UCI Parkinsons"
+  source_url: "https://archive.ics.uci.edu/ml/machine-learning-databases/parkinsons/parkinsons.data"
+  raw_path: "data/raw/parkinsons.data"
+  target_column: "status"
+  id_column: "name"
+  positive_label: 1
+  negative_label: 0
