@@ -12,6 +12,9 @@ __pycache__/
 # Generated datasets and large artifacts
 data/processed/*
 data/features/*
+!data/features/*.csv
+!data/features/*.json
+!data/features/*.txt
 models/*.pkl
 models/*.joblib
 models/*.onnx
