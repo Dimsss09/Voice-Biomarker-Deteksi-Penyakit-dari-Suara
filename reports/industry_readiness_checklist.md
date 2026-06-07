@@ -21,6 +21,8 @@ It is still not industry-ready for medical or clinical use.
 - [x] Permutation feature importance
 - [x] Model card with limitations
 - [x] Repeated subject-level cross-validation stability report
+- [x] Browser demo with microphone and upload inputs
+- [x] Final README with setup, metrics, demo steps, and limitations
 
 ## Still Required Before Industry Use
 

@@ -8,6 +8,7 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .env
+.gradio.pid
 
 # Generated datasets and large artifacts
 data/processed/*
@@ -15,6 +16,8 @@ data/features/*
 !data/features/*.csv
 !data/features/*.json
 !data/features/*.txt
+data/samples/*
+!data/samples/*.wav
 models/*.pkl
 models/*.joblib
 models/*.onnx
